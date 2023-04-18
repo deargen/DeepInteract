@@ -4,13 +4,15 @@ from pathlib import Path
 
 import pytorch_lightning as pl
 import torch.nn as nn
-from pytorch_lightning.plugins import DDPPlugin
+from pytorch_lightning.strategies import DDPStrategy
 
 from project.datasets.PICP.picp_dgl_data_module import PICPDGLDataModule
 from project.utils.deepinteract_constants import NODE_COUNT_LIMIT, RESIDUE_COUNT_LIMIT
 from project.utils.deepinteract_modules import LitGINI
 from project.utils.deepinteract_utils import collect_args, process_args, construct_pl_logger
 
+from pytorch_lightning.callbacks.progress import TQDMProgressBar
+from pytorch_lightning.callbacks import StochasticWeightAveraging
 
 # -------------------------------------------------------------------------------------------------------------------------------------
 # Following code curated for DeepInteract (https://github.com/BioinfoMachineLearning/DeepInteract):
@@ -36,7 +38,7 @@ def main(args):
                                          training_with_db5=args.training_with_db5,
                                          testing_with_casp_capri=args.testing_with_casp_capri,
                                          process_complexes=args.process_complexes,
-                                         input_indep=args.input_indep)
+                                         input_indep=args.input_indep, split_ver=args.split_ver)
     picp_data_module.setup()
 
     # ------------
@@ -151,6 +153,13 @@ def main(args):
     callbacks = [early_stop_callback, ckpt_callback]
     if args.fine_tune:
         callbacks.append(lr_monitor_callback)
+        
+    if args.swa:
+        swa_callback = StochasticWeightAveraging(swa_epoch_start=args.swa_epoch_start, swa_lrs=args.lr, annealing_epochs=args.swa_annealing_epochs, annealing_strategy=args.swa_annealing_strategy)
+        callbacks.append(swa_callback)
+        
+    callbacks.append(TQDMProgressBar(refresh_rate=1))
+        
     trainer.callbacks = callbacks
 
     # ------------
@@ -199,22 +208,22 @@ if __name__ == '__main__':
     args.max_time = {'hours': args.max_hours, 'minutes': args.max_minutes}
     args.max_epochs = args.num_epochs
     args.profiler = args.profiler_method
-    args.accelerator = args.multi_gpu_backend
+    args.accelerator = 'cuda' if args.num_gpus > 0 else 'cpu'
     args.auto_select_gpus = args.auto_choose_gpus
-    args.gpus = args.num_gpus
+    if args.gpu_offset is None:
+        args.gpus = args.num_gpus
+    else:
+        args.gpus = [args.gpu_offset + i for i in range(args.num_gpus)]
     args.num_nodes = args.num_compute_nodes
     args.precision = args.gpu_precision
     args.accumulate_grad_batches = args.accum_grad_batches
     args.gradient_clip_val = args.grad_clip_val
     args.gradient_clip_algo = args.grad_clip_algo
-    args.stochastic_weight_avg = args.stc_weight_avg
-    args.deterministic = True  # Make LightningModule's training reproducible
+    args.deterministic = False  # Make LightningModule's training reproducible
+    # cuda kernel of torch.cumsum() has deterministic implementation  
 
     # Set plugins for Lightning
-    args.plugins = [
-        # 'ddp_sharded',  # For sharded model training (to reduce GPU requirements)
-        DDPPlugin(find_unused_parameters=False)
-    ]
+    args.strategy = DDPStrategy()
 
     # Finalize all arguments as necessary
     args = process_args(args)

@@ -15,7 +15,7 @@ from Bio.PDB.DSSP import dssp_dict_from_pdb_file, DSSP
 from Bio.PDB.Polypeptide import is_aa
 from Bio.PDB.ResidueDepth import ResidueDepth
 from Bio.PDB.vectors import Vector
-from Bio.SCOP.Raf import protein_letters_3to1
+from Bio.SCOP.Raf import protein_letters_3to1_extended as protein_letters_3to1
 from scipy import spatial
 from sklearn.preprocessing import MinMaxScaler
 from tqdm import tqdm
@@ -409,6 +409,7 @@ def postprocess_pruned_pairs(raw_pdb_dir: str, external_feats_dir: str, pair_fil
     pair, raw_pdb_filenames, should_keep = __should_keep_postprocessed(raw_pdb_dir, pair_filename, source_type)
     if should_keep:
         postprocessed_pair = postprocess_pruned_pair(raw_pdb_filenames, external_feats_dir, pair, source_type)
+        
         if not output_file_exists:
             # Write into output_filenames if not exist
             with open(output_filename, 'wb') as f:
@@ -437,7 +438,7 @@ def postprocess_pruned_pair(raw_pdb_filenames: List[str], external_feats_dir: st
     raw_pdb_filenames.sort()  # Ensure the left input PDB is processed first
     for struct_idx, raw_pdb_filename in enumerate(raw_pdb_filenames):
         is_rcsb_complex = source_type.lower() in ['rcsb', 'evcoupling', 'casp_capri']
-
+        
         # Extract the FASTA sequence(s) for a given PDB file
         sequences = find_fasta_sequences_for_pdb_file(sequences,
                                                       raw_pdb_filename,
@@ -464,7 +465,10 @@ def postprocess_pruned_pair(raw_pdb_filenames: List[str], external_feats_dir: st
             pdb_code = db.get_pdb_code(raw_pdb_filename)
             psaia_filenames = [path for path in Path(external_feats_dir).rglob(f'{pdb_code}*.tbl')]
             psaia_filenames.sort()  # Ensure the left input PDB is processed first
-            psaia_df = get_df_from_psaia_tbl_file(psaia_filenames[struct_idx])
+            try:
+                psaia_df = get_df_from_psaia_tbl_file(psaia_filenames[struct_idx])
+            except:
+                raise Exception(struct_idx, psaia_filenames, external_feats_dir)
 
             # Extract half-sphere exposure (HSE) statistics for each PDB model (including HSAAC and CN values)
             similarity_matrix, coordinate_numbers = get_similarity_matrix(get_coords(residues))

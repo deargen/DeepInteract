@@ -85,7 +85,8 @@ class DIPSDGLDataset(DGLDataset):
                  input_indep=False,
                  train_viz=False,
                  force_reload=False,
-                 verbose=False):
+                 verbose=True,
+                 split_ver=None):
         assert mode in ['train', 'val', 'test']
         assert 0.0 < pn_ratio <= 1.0
         assert 0.0 < percent_to_use <= 1.0
@@ -103,8 +104,9 @@ class DIPSDGLDataset(DGLDataset):
         self.processed_dir = os.path.join(self.final_dir, 'processed')
 
         self.filename_sampling = 0.0 < self.percent_to_use < 1.0
+        self.split_ver = split_ver
         self.base_txt_filename, self.filenames_frame_txt_filename, self.filenames_frame_txt_filepath = \
-            construct_filenames_frame_txt_filenames(self.mode, self.percent_to_use, self.filename_sampling, self.root)
+            construct_filenames_frame_txt_filenames(self.mode, self.percent_to_use, self.filename_sampling, self.root, split_ver=self.split_ver)
 
         # Try to load the text file containing all DIPS-Plus filenames, and alert the user if it is missing or corrupted
         filenames_frame_to_be_written = not os.path.exists(self.filenames_frame_txt_filepath)

@@ -164,7 +164,7 @@ if __name__ == '__main__':
     args.max_time = {'hours': args.max_hours, 'minutes': args.max_minutes}
     args.max_epochs = args.num_epochs
     args.profiler = args.profiler_method
-    args.accelerator = 'dp'  # Test using Data Parallel (DP) and not Distributed Data Parallel (DDP) to avoid PT error
+    args.accelerator = 'cuda'  # Test using Data Parallel (DP) and not Distributed Data Parallel (DDP) to avoid PT error
     args.auto_select_gpus = args.auto_choose_gpus
     args.gpus = 1  # Enforce testing to take place on a single GPU
     args.num_nodes = 1  # Enforce testing to take place on a single node

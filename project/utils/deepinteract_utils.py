@@ -84,11 +84,18 @@ def min_max_normalize_tensor(tensor: torch.Tensor, device=None):
     return tensor
 
 
-def construct_filenames_frame_txt_filenames(mode: str, percent_to_use: float, filename_sampling: bool, root: str):
+def construct_filenames_frame_txt_filenames(mode: str, percent_to_use: float, filename_sampling: bool, root: str, split_ver=None):
     """Build the file path of the requested filename DataFrame text file."""
-    base_txt_filename = f'pairs-postprocessed' if mode == 'full' else f'pairs-postprocessed-{mode}'
-    filenames_frame_txt_filename = base_txt_filename + f'-{int(percent_to_use * 100)}%-sampled.txt' \
-        if filename_sampling else base_txt_filename + '.txt'
+    if split_ver is None:
+        base_txt_filename = f'pairs-postprocessed' if mode == 'full' else f'pairs-postprocessed-{mode}'
+    else:
+        base_txt_filename = f'{split_ver}/pairs-postprocessed' if mode == 'full' else f'{split_ver}/pairs-postprocessed-{mode}'
+    
+    if filename_sampling:
+        filenames_frame_txt_filename = base_txt_filename + f'-{int(percent_to_use * 100)}%-sampled.txt' 
+    else:
+        filenames_frame_txt_filename = base_txt_filename + '.txt'
+        
     filenames_frame_txt_filepath = os.path.join(root, filenames_frame_txt_filename)
     return base_txt_filename, filenames_frame_txt_filename, filenames_frame_txt_filepath
 
@@ -619,6 +626,7 @@ def make_dataset(input_dataset_dir='datasets/Input/raw', output_dir='datasets/In
     get_neighbors = nb.build_get_neighbors(neighbor_def, cutoff)
     get_pairs = pair.build_get_pairs(neighbor_def, source_type, unbound, get_neighbors, False)
     pair.all_complex_to_pairs(complexes, source_type, get_pairs, pairs_dir, num_cpus)
+    
 
 
 def recover_any_missing_chain_ids(interim_dataset_dir: str, new_pdb_filepath: str,
@@ -679,7 +687,7 @@ def recover_any_missing_chain_ids(interim_dataset_dir: str, new_pdb_filepath: st
         dill.dump(pair, f)
 
 
-def generate_psaia_features(psaia_dir='~/Programs/PSAIA_1.0_source/bin/linux/psa',
+def generate_psaia_features(psaia_dir='../softwares/PSAIA_1.0_source/bin/linux/psa',
                             psaia_config='datasets/builder/psaia_config_file_input.txt',
                             pdb_dataset='datasets/Input/raw', pkl_dataset='datasets/Input/interim/parsed',
                             pruned_dataset='datasets/Input/interim/parsed',
@@ -807,11 +815,13 @@ def convert_input_pdb_files_to_pair(left_pdb_filepath: str, right_pdb_filepath: 
                             pkl_dataset=os.path.join(input_dataset_dir, 'interim', 'parsed'),
                             pruned_dataset=os.path.join(input_dataset_dir, 'interim', 'parsed'),
                             output_dir=os.path.join(input_dataset_dir, 'interim', 'external_feats'))
+    #raise Exception('generated psaia features!')
     # Allow the user to specify an alternative to the BFD for searches
     generate_hhsuite_features(pkl_dataset=os.path.join(input_dataset_dir, 'interim', 'parsed'),
                               pruned_dataset=os.path.join(input_dataset_dir, 'interim', 'parsed'),
                               hhsuite_db=hhsuite_db,
                               output_dir=os.path.join(input_dataset_dir, 'interim', 'external_feats'))
+    #raise Exception('generated hhsuite features!')
     # Postprocess any pruned pairs that have not already been postprocessed
     pair_filepaths = launch_postprocessing_of_pruned_pairs(
         raw_pdb_dir=os.path.join(input_dataset_dir, 'raw'),
@@ -820,6 +830,7 @@ def convert_input_pdb_files_to_pair(left_pdb_filepath: str, right_pdb_filepath: 
         output_dir=os.path.join(input_dataset_dir, 'final', 'raw'),
         pdb_code=pdb_code
     )
+    
     if len(pair_filepaths) > 0:
         # Retrieve the filepath of the single input pair produced in this case
         pair_filepath = pair_filepaths[0]
@@ -844,6 +855,7 @@ def process_pdb_into_graph(left_pdb_filepath: str, right_pdb_filepath: str, inpu
     """Process PDB file into a DGLGraph containing DeepInteract feature set."""
     input_pair = convert_input_pdb_files_to_pair(left_pdb_filepath, right_pdb_filepath,
                                                  input_dataset_dir, psaia_dir, psaia_config, hhsuite_db)
+    
     # Convert the input DataFrame into its DGLGraph representations, using all atoms to generate geometric features
     graph1 = convert_df_to_dgl_graph(input_pair.df0, left_pdb_filepath, knn, geo_nbrhd_size, self_loops)
     graph2 = convert_df_to_dgl_graph(input_pair.df1, right_pdb_filepath, knn, geo_nbrhd_size, self_loops)
@@ -1014,6 +1026,9 @@ def collect_args():
                         help='Positive-negative class ratio to instate during training with DIPS-Plus')
     parser.add_argument('--dips_percent_to_use', type=float, default=1.00,
                         help='Fraction of DIPS-Plus dataset splits to use')
+    
+    parser.add_argument('--split_ver', type=str)
+    
     parser.add_argument('--dips_data_dir', type=str, default='datasets/DIPS/final/raw', help='Path to DIPS')
     parser.add_argument('--casp_capri_data_dir', type=str, default='datasets/CASP_CAPRI/final/raw', help='CAPRI path')
     parser.add_argument('--casp_capri_percent_to_use', type=float, default=1.0, help='Fraction of CASP-CAPRI to use')
@@ -1023,7 +1038,7 @@ def collect_args():
                         help='Test on the 13th and 14th CASP-CAPRI\'s dataset of homo and heterodimers')
     parser.add_argument('--input_dataset_dir', type=str, default='datasets/Input',
                         help='Path to directory in which to generate features and outputs for the given inputs')
-    parser.add_argument('--psaia_dir', type=str, default='~/Programs/PSAIA_1.0_source/bin/linux/psa',
+    parser.add_argument('--psaia_dir', type=str, default='../softwares/PSAIA_1.0_source/bin/linux/psa',
                         help='Path to locally-compiled copy of PSAIA (i.e., to PSA, one of its CLIs)')
     parser.add_argument('--psaia_config', type=str, default='datasets/builder/psaia_config_file_input.txt',
                         help='Path to input config file for PSAIA')
@@ -1067,6 +1082,7 @@ def collect_args():
     parser.add_argument('--max_minutes', type=int, default=55, help='Maximum number of minutes to allot for training')
     parser.add_argument('--multi_gpu_backend', type=str, default='ddp', help='Multi-GPU backend for training')
     parser.add_argument('--num_gpus', type=int, default=1, help='Number of GPUs to use (e.g. -1 = all available GPUs)')
+    parser.add_argument('--gpu_offset', type=int)
     parser.add_argument('--auto_choose_gpus', action='store_true', dest='auto_choose_gpus', help='Auto-select GPUs')
     parser.add_argument('--num_compute_nodes', type=int, default=1, help='Number of compute nodes to use')
     parser.add_argument('--gpu_precision', type=int, default=32, help='Bit size used during training (e.g. 16-bit)')
@@ -1081,7 +1097,13 @@ def collect_args():
     parser.add_argument('--accum_grad_batches', type=int, default=1, help='Norm over which to clip gradients')
     parser.add_argument('--grad_clip_val', type=float, default=0.5, help='Norm over which to clip gradients')
     parser.add_argument('--grad_clip_algo', type=str, default='norm', help='Algorithm with which to clip gradients')
-    parser.add_argument('--stc_weight_avg', action='store_true', dest='stc_weight_avg', help='Smooth loss landscape')
+    
+    parser.add_argument('--swa', action='store_true', help='Stochastic Weight Averaging')
+    parser.add_argument('--swa_epoch_start', type=int, default=15)
+    parser.add_argument('--swa_annealing_epochs', type=int, default=5)
+    parser.add_argument('--swa_annealing_strategy', type=str, default='cos')
+    
+    
     parser.add_argument('--find_lr', action='store_true', dest='find_lr', help='Find an optimal learning rate a priori')
     parser.add_argument('--input_indep', action='store_true', dest='input_indep', help='Whether to zero input for test')
 

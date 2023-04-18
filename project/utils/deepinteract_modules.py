@@ -1560,23 +1560,23 @@ class LitGINI(pl.LightningModule):
 
         # Declare loss functions and metrics for training, validation, and testing
         self.loss_fn = nn.CrossEntropyLoss()
-        self.train_acc = tm.Accuracy(num_classes=self.num_classes, average=None)
-        self.train_prec = tm.Precision(num_classes=self.num_classes, average=None)
-        self.train_recall = tm.Recall(num_classes=self.num_classes, average=None)
+        self.train_acc = tm.Accuracy(task='multiclass', num_classes=self.num_classes, average=None)
+        self.train_prec = tm.Precision(task='multiclass', num_classes=self.num_classes, average=None)
+        self.train_recall = tm.Recall(task='multiclass', num_classes=self.num_classes, average=None)
 
-        self.val_acc = tm.Accuracy(num_classes=self.num_classes, average=None)
-        self.val_prec = tm.Precision(num_classes=self.num_classes, average=None)
-        self.val_recall = tm.Recall(num_classes=self.num_classes, average=None)
-        self.val_auroc = tm.AUROC(num_classes=self.num_classes, average=None)
-        self.val_auprc = tm.AveragePrecision(num_classes=self.num_classes)
-        self.val_f1 = tm.F1(num_classes=self.num_classes, average=None)
+        self.val_acc = tm.Accuracy(task='multiclass', num_classes=self.num_classes, average=None)
+        self.val_prec = tm.Precision(task='multiclass', num_classes=self.num_classes, average=None)
+        self.val_recall = tm.Recall(task='multiclass', num_classes=self.num_classes, average=None)
+        self.val_auroc = tm.AUROC(task='multiclass', num_classes=self.num_classes, average=None)
+        self.val_auprc = tm.AveragePrecision(task='multiclass', num_classes=self.num_classes, average=None) # Added average=None. #TODO: check if this is correct 
+        self.val_f1 = tm.F1Score(task='multiclass', num_classes=self.num_classes, average=None)
 
-        self.test_acc = tm.Accuracy(num_classes=self.num_classes, average=None)
-        self.test_prec = tm.Precision(num_classes=self.num_classes, average=None)
-        self.test_recall = tm.Recall(num_classes=self.num_classes, average=None)
-        self.test_auroc = tm.AUROC(num_classes=self.num_classes, average=None)
-        self.test_auprc = tm.AveragePrecision(num_classes=self.num_classes)
-        self.test_f1 = tm.F1(num_classes=self.num_classes, average=None)
+        self.test_acc = tm.Accuracy(task='multiclass', num_classes=self.num_classes, average=None)
+        self.test_prec = tm.Precision(task='multiclass', num_classes=self.num_classes, average=None)
+        self.test_recall = tm.Recall(task='multiclass', num_classes=self.num_classes, average=None)
+        self.test_auroc = tm.AUROC(task='multiclass', num_classes=self.num_classes, average=None)
+        self.test_auprc = tm.AveragePrecision(task='multiclass', num_classes=self.num_classes)
+        self.test_f1 = tm.F1Score(task='multiclass', num_classes=self.num_classes, average=None)
 
         # Reset learnable parameters and log hyperparameters
         self.reset_parameters()
@@ -1802,7 +1802,7 @@ class LitGINI(pl.LightningModule):
         train_recall = self.train_recall(preds_rounded, labels)[1]  # Calculate Recall of a single complex
 
         # Log training step metric(s)
-        self.log(f'train_ce', loss, on_step=False, on_epoch=True, sync_dist=True)
+        self.log(f'train_ce', loss, on_step=False, on_epoch=True, sync_dist=True, batch_size=self.batch_size)
 
         # Manually evaluate training performance on a held-out validation dataset purely for visualizing model dynamics
         is_viz_epoch = self.current_epoch % self.viz_every_n_epochs == 0
@@ -1844,7 +1844,7 @@ class LitGINI(pl.LightningModule):
                 val_preds_rounded[:, 1] = (val_preds[:, 1] >= self.pos_prob_threshold).float()
                 val_preds = val_preds[:, 1].reshape(val_len_1, val_len_2).cpu().numpy()
                 val_preds_rounded = val_preds_rounded[:, 1].reshape(val_len_1, val_len_2).cpu().numpy()
-                val_labels = val_examples_list[:, 2].reshape(val_len_1, val_len_2).float().cpu().numpy()
+                val_labels = val_examples_list[0][:, 2].reshape(val_len_1, val_len_2).float().cpu().numpy() # val_examples_list[:, 2] -> val_examples_list[0][:, 2] #TODO: check if this is correct
 
                 # ------------
                 # Visualize
@@ -1890,7 +1890,7 @@ class LitGINI(pl.LightningModule):
             'train_recall': train_recall
         }
 
-    def training_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
+    def training_epoch_end(self, outputs) -> None:
         """Lightning calls this at the end of every training epoch."""
         # Tuplize scores for the current device (e.g. Rank 0)
         train_accs = torch.cat([output_dict['train_acc'].unsqueeze(0) for output_dict in outputs])
@@ -1981,7 +1981,7 @@ class LitGINI(pl.LightningModule):
             'val_auprc': val_auprc
         }
 
-    def validation_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT) -> None:
+    def validation_epoch_end(self, outputs) -> None:
         """Lightning calls this at the end of every validation epoch."""
         # Tuplize scores for the current device (e.g. Rank 0)
         val_accs = torch.cat([output_dict['val_acc'].unsqueeze(0) for output_dict in outputs])
@@ -2100,7 +2100,7 @@ class LitGINI(pl.LightningModule):
             'target': filepaths[0].split(os.sep)[-1][:4]
         }
 
-    def test_epoch_end(self, outputs: pl.utilities.types.EPOCH_OUTPUT):
+    def test_epoch_end(self, outputs):
         """Lightning calls this at the end of every test epoch."""
         # Tuplize scores for the current device (e.g. Rank 0)
         test_accs = torch.cat([output_dict['test_acc'].unsqueeze(0) for output_dict in outputs]).unsqueeze(1)

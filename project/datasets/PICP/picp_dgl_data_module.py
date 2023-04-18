@@ -30,7 +30,7 @@ class PICPDGLDataModule(LightningDataModule):
     def __init__(self, casp_capri_data_dir: str, db5_data_dir: str, dips_data_dir: str, batch_size: int,
                  num_dataloader_workers: int, knn: int, self_loops: bool, pn_ratio: float,
                  casp_capri_percent_to_use: float, testing_with_casp_capri: bool, db5_percent_to_use: float,
-                 training_with_db5: bool, dips_percent_to_use: float, process_complexes: bool, input_indep: bool):
+                 training_with_db5: bool, dips_percent_to_use: float, process_complexes: bool, input_indep: bool, split_ver=None):
         super().__init__()
 
         self.casp_capri_data_dir = casp_capri_data_dir
@@ -60,10 +60,18 @@ class PICPDGLDataModule(LightningDataModule):
         self.input_indep = input_indep
         # Which collation function to use
         self.collate_fn = dgl_picp_collate
+        
+        if training_with_db5:
+            self.dips_split_ver = None
+            self.db5_split_ver = split_ver
+        else:
+            self.dips_split_ver = split_ver 
+            self.db5_split_ver = None
 
     def setup(self, stage: Optional[str] = None):
         # Assign training/validation/testing data set for use in DataLoaders - called on every GPU
         if self.training_with_db5:
+            raise Exception('Not handled yet') # TODO: split_Ver 
             self.db5_train = DB5DGLDataset(mode='train', raw_dir=self.db5_data_dir, knn=self.knn,
                                            self_loops=self.self_loops, percent_to_use=self.db5_percent_to_use,
                                            process_complexes=self.process_complexes, input_indep=self.input_indep)
@@ -80,20 +88,20 @@ class PICPDGLDataModule(LightningDataModule):
         self.dips_train = DIPSDGLDataset(mode='train', raw_dir=self.dips_data_dir, knn=self.knn,
                                          self_loops=self.self_loops, pn_ratio=self.pn_ratio,
                                          percent_to_use=self.dips_percent_to_use,
-                                         process_complexes=self.process_complexes, input_indep=self.input_indep)
+                                         process_complexes=self.process_complexes, input_indep=self.input_indep, split_ver=self.dips_split_ver)
         self.dips_val = DIPSDGLDataset(mode='val', raw_dir=self.dips_data_dir, knn=self.knn,
                                        self_loops=self.self_loops, pn_ratio=self.pn_ratio,
                                        percent_to_use=self.dips_percent_to_use,
-                                       process_complexes=self.process_complexes, input_indep=self.input_indep)
+                                       process_complexes=self.process_complexes, input_indep=self.input_indep, split_ver=self.dips_split_ver)
         self.dips_val_viz = DIPSDGLDataset(mode='val', raw_dir=self.dips_data_dir, knn=self.knn,
                                            self_loops=self.self_loops, pn_ratio=self.pn_ratio,
                                            percent_to_use=self.dips_percent_to_use,
                                            process_complexes=self.process_complexes, input_indep=self.input_indep,
-                                           train_viz=True)
+                                           train_viz=True, split_ver=self.dips_split_ver)
         self.dips_test = DIPSDGLDataset(mode='test', raw_dir=self.dips_data_dir, knn=self.knn,
                                         self_loops=self.self_loops, pn_ratio=self.pn_ratio,
                                         percent_to_use=self.dips_percent_to_use,
-                                        process_complexes=self.process_complexes, input_indep=self.input_indep)
+                                        process_complexes=self.process_complexes, input_indep=self.input_indep, split_ver=self.dips_split_ver)
         if self.testing_with_casp_capri:
             self.casp_capri_test = CASPCAPRIDGLDataset(mode='test', raw_dir=self.casp_capri_data_dir, knn=self.knn,
                                                        self_loops=self.self_loops,

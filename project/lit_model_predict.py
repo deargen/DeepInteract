@@ -56,7 +56,7 @@ class InputDataset(DGLDataset):
                  left_pdb_filepath=os.path.join('test_data', '4heq_l_u.pdb'),
                  right_pdb_filepath=os.path.join('test_data', '4heq_r_u.pdb'),
                  input_dataset_dir=os.path.join('datasets', 'Input'),
-                 psaia_dir='~/Programs/PSAIA_1.0_source/bin/linux/psa',
+                 psaia_dir='../softwares/PSAIA_1.0_source/bin/linux/psa',
                  psaia_config='datasets/builder/psaia_config_file_input.txt',
                  hhsuite_db='~/Data/Databases/bfd_metaclust_clu_complete_id30_c90_final_seq.sorted_opt',
                  knn=20,
@@ -74,7 +74,6 @@ class InputDataset(DGLDataset):
         self.geo_nbrhd_size = geo_nbrhd_size
         self.self_loops = self_loops
         self.data = {}
-
         raw_dir = os.path.join(*left_pdb_filepath.split(os.sep)[:-1])
         super(InputDataset, self).__init__(name='InputDataset',
                                            raw_dir=raw_dir,
@@ -164,7 +163,7 @@ def main(args):
     # -----------
     # Assemble a dictionary of model arguments
     dict_args = vars(args)
-
+    
     # Baseline Model - Geometry-Focused Inter-Graph Node Interaction (GINI)
     model = LitGINI(num_node_input_feats=input_dataset.num_node_features,
                     num_edge_input_feats=input_dataset.num_edge_features,
@@ -243,7 +242,7 @@ def main(args):
     # Saving
     # -----------
     pdb_code = list(ca.get_complex_pdb_codes([args.left_pdb_filepath, args.right_pdb_filepath]))[0]
-    input_prefix = os.path.join(*args.left_pdb_filepath.split(os.sep)[:-1])
+    input_prefix = os.sep + os.path.join(*args.left_pdb_filepath.split(os.sep)[:-1])
     contact_map_filepath = os.path.join(input_prefix, f'{pdb_code}_contact_prob_map.npy')
     np.save(contact_map_filepath, contact_prob_map)
     logging.info(f'Saved predicted contact probability map for {pdb_code} as {contact_map_filepath}')
@@ -281,7 +280,7 @@ if __name__ == '__main__':
     args.max_time = {'hours': args.max_hours, 'minutes': args.max_minutes}
     args.max_epochs = args.num_epochs
     args.profiler = args.profiler_method
-    args.accelerator = 'dp'  # Predict using Data Parallel (DP) and not Distributed Data Parallel (DDP) to avoid errors
+    args.accelerator = 'cuda'  # Predict using Data Parallel (DP) and not Distributed Data Parallel (DDP) to avoid errors
     args.auto_select_gpus = args.auto_choose_gpus
     args.gpus = args.num_gpus  # Allow user to choose how many GPUs they would like to use for inference
     args.num_nodes = 1  # Enforce predictions to take place on a single node
